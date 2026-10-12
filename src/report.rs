@@ -544,6 +544,14 @@ fn jobs(dir: &Path, holding: &[u32]) -> Vec<Job> {
                     Some("paused"),
                     Some("the queue is paused: new jobs hold until resume".to_string()),
                 )
+            } else if view.passed.contains(&t.pid) {
+                (
+                    Some("turn"),
+                    Some(format!(
+                        "passed over: didn't take a free GPU lane within {} s; the jobs behind it go first",
+                        crate::queue::pass().as_secs()
+                    )),
+                )
             } else if let Err(wait) = view.admits(t.pid) {
                 let (word, text) = view.why(wait);
                 (Some(word), Some(text))

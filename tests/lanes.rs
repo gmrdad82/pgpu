@@ -478,3 +478,54 @@ fn the_lanes_follow_the_card_growing_under_70_percent_up_to_4_and_stopping_over_
         assert!(sb.wait_exit(pid, 20).success());
     }
 }
+
+#[test]
+fn a_waiter_that_never_takes_its_free_lane_is_passed_over_and_the_next_job_runs() {
+    let mut sb = Sandbox::new("lanes-passed");
+    lanes(&sb, 2);
+    sb.fake("pass_ms", "1000\n");
+    let a = sb.run(
+        &["--as", "alpha", "--class", "clip"],
+        "a",
+        &ticker("a", false),
+    );
+    until("a runs", 10, || running(&sb, a));
+    let mut stuck = std::process::Command::new("sleep")
+        .arg("60")
+        .spawn()
+        .unwrap();
+    let pid = stuck.id();
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+    let start = stat
+        .rsplit_once(") ")
+        .unwrap()
+        .1
+        .split(' ')
+        .nth(19)
+        .unwrap();
+    fs::write(
+        sb.path(&format!("run/pito-gpu-queue/tickets/1-1-{pid}")),
+        format!("stuck\nan older wrapper\n\n\n{start}\nclip\n\n"),
+    )
+    .unwrap();
+    let c = sb.run(
+        &["--as", "gamma", "--class", "clip"],
+        "c",
+        &ticker("c", false),
+    );
+    until("c takes the lane the stuck waiter left", 15, || {
+        running(&sb, c)
+    });
+    assert!(
+        why(&sb, pid).starts_with("passed over"),
+        "{}",
+        why(&sb, pid)
+    );
+    let _ = stuck.kill();
+    let _ = stuck.wait();
+    for job in ["a", "c"] {
+        fs::write(sb.path(&format!("{job}.finish")), "").unwrap();
+    }
+    assert!(sb.wait_exit(a, 10).success());
+    assert!(sb.wait_exit(c, 10).success());
+}

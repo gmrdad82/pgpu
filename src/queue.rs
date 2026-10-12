@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use crate::fake::fake;
 use crate::hour;
-use crate::paths::{home, millis, read_small, say, say_out, stat_start, stat_state, state};
+use crate::paths::{
+    home, millis, read_small, say, say_out, stat_start, stat_state, state, write_atomic,
+};
 use crate::seats::{self, Line, Seats, Wait, holding};
 use crate::wake::{RING, ring_wrapper};
 use crate::wrapper::Leave;
@@ -118,6 +120,26 @@ pub(crate) fn night() -> bool {
         Some(set) => set == "1",
         None => (NIGHT.0..NIGHT.1).contains(&crate::report::local_hour()),
     }
+}
+
+pub(crate) const PASS: Duration = Duration::from_secs(3);
+
+pub(crate) fn pass() -> Duration {
+    fake("pass_ms")
+        .and_then(|ms| ms.parse().ok())
+        .map_or(PASS, Duration::from_millis)
+}
+
+fn offers(dir: &Path, list: &[Ticket]) -> Vec<(u32, u128)> {
+    list.iter()
+        .filter_map(|t| {
+            let body = fs::read_to_string(dir.join("offered").join(t.pid.to_string())).ok()?;
+            let mut lines = body.lines();
+            let start: u64 = lines.next()?.trim().parse().ok()?;
+            let since: u128 = lines.next()?.trim().parse().ok()?;
+            (start == t.start).then_some((t.pid, since))
+        })
+        .collect()
 }
 
 pub(crate) fn rerun(t: &Ticket, holding: &[u32]) -> bool {
@@ -450,6 +472,8 @@ pub(crate) struct View {
     pub(crate) list: Vec<Ticket>,
     gate: Gate,
     pub(crate) holding: Vec<u32>,
+    offered: Vec<(u32, u128)>,
+    pub(crate) passed: Vec<u32>,
     pub(crate) seats: usize,
     paused: bool,
     night: bool,
@@ -465,8 +489,17 @@ impl View {
         let paused = dir.join("paused").exists();
         let list: Vec<Ticket> = list.into_iter().filter(|t| !paused || t.started).collect();
         let holding = holding(dir);
+        let offered = offers(dir, &list);
+        let (at, pass) = (millis(), pass().as_millis());
+        let passed = offered
+            .iter()
+            .filter(|(pid, since)| !holding.contains(pid) && at.saturating_sub(*since) >= pass)
+            .map(|(pid, _)| *pid)
+            .collect();
         Self {
             gate: Gate::read(dir, &list),
+            offered,
+            passed,
             night: night(),
             busy: seats::load(dir).average(),
             seats: seats::room(dir, seats, holding.len()),
@@ -476,11 +509,47 @@ impl View {
         }
     }
 
-    fn open(&self, without: Option<u32>) -> Vec<&Ticket> {
+    fn open(&self, me: u32, keep_me: bool) -> Vec<&Ticket> {
         self.list
             .iter()
-            .filter(|t| self.gate.open(t.pid) && Some(t.pid) != without)
+            .filter(|t| {
+                self.gate.open(t.pid)
+                    && if t.pid == me {
+                        keep_me
+                    } else {
+                        !self.passed.contains(&t.pid)
+                    }
+            })
             .collect()
+    }
+
+    pub(crate) fn offer(&self, dir: &Path) {
+        let folder = dir.join("offered");
+        let at = millis();
+        for t in &self.list {
+            let waits = !self.holding.contains(&t.pid) && self.gate.open(t.pid);
+            let offered = waits && (self.passed.contains(&t.pid) || self.admits(t.pid).is_ok());
+            let marked = self.offered.iter().any(|(pid, _)| *pid == t.pid);
+            let path = folder.join(t.pid.to_string());
+            if offered && !marked {
+                let _ = write_atomic(&path, &format!("{}\n{at}\n", t.start));
+            } else if !offered && marked {
+                let _ = fs::remove_file(&path);
+            }
+        }
+        let Ok(entries) = fs::read_dir(&folder) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let gone = entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.parse::<u32>().ok())
+                .is_none_or(|pid| !self.list.iter().any(|t| t.pid == pid));
+            if gone {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
     }
 
     fn line<'a>(&self, open: &'a [&'a Ticket], holding: &'a [u32]) -> Line<'a> {
@@ -508,7 +577,7 @@ impl View {
             return Err(Wait::Alone(lender));
         }
         let mine = self.list.iter().find(|t| t.pid == me);
-        let mut open = self.open(None);
+        let mut open = self.open(me, true);
         if mine.is_some_and(|t| t.alone) {
             if !self.night
                 && mine.is_some_and(|t| rerun(t, &self.holding))
@@ -545,7 +614,7 @@ impl View {
             .copied()
             .filter(|pid| *pid != me)
             .collect();
-        (self.open(Some(me)), holding)
+        (self.open(me, false), holding)
     }
 
     pub(crate) fn next_up(&self, me: u32) -> bool {
@@ -641,11 +710,14 @@ pub(crate) fn acquire(
         seats::steer(
             dir,
             view.holding.iter().filter(|pid| **pid != me).count(),
-            view.list
-                .iter()
-                .any(|t| !view.holding.contains(&t.pid) && seats::replaced(t.pid)),
+            view.list.iter().any(|t| {
+                !view.holding.contains(&t.pid)
+                    && !view.passed.contains(&t.pid)
+                    && seats::replaced(t.pid)
+            }),
         );
         let view = View::read(dir);
+        view.offer(dir);
         let admitted = view.admits(me);
         let alone = view.list.iter().any(|t| t.pid == me && t.alone);
         if admitted.is_ok() && seats.take(alone) {

@@ -55,8 +55,8 @@ fn xdg(var: &str, below_home: &str) -> PathBuf {
         .unwrap_or_else(|| user_home().join(below_home))
 }
 
-const HOME_FOLDERS: [&str; 9] = [
-    "tickets", "served", "turns", "stopped", "desk", "play", "lent", "plays", "reclaim",
+const HOME_FOLDERS: [&str; 10] = [
+    "tickets", "served", "turns", "stopped", "desk", "play", "lent", "plays", "reclaim", "offered",
 ];
 
 pub(crate) fn home() -> PathBuf {
@@ -378,6 +378,7 @@ mod tests {
         make_folders(&dir);
         for folder in [
             "tickets", "served", "turns", "stopped", "desk", "play", "lent", "plays", "reclaim",
+            "offered",
         ] {
             assert!(dir.join(folder).is_dir(), "{folder}");
         }
