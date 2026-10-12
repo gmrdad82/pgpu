@@ -1,0 +1,14 @@
+pgpu
+Copyright (c) 2026 Cătălin Ilinca
+
+The code is under the MIT licence in LICENSE. These are the files in this
+repository that are not code, where each comes from, and what covers it.
+
+A terminal clip recorded by prec from this repository's own shot
+(render/terminal.toml and the tape in render/terminal/, over the sleeping jobs
+render/terminal/queue.sh makes), made a GIF by pconv, under the MIT licence
+like the code:
+- docs/images/status.gif: the status shot
+
+The pgpu and PITO names and their logos are © Catalin Ilinca, all rights
+reserved, and are not covered by the MIT licence (TRADEMARKS.md).
