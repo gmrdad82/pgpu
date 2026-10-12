@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.31.1 — 2026-10-12
+
+### Fixed
+
+- A waiting job that doesn't take a free GPU lane within 3 s, such as one queued under an older pgpu, is passed over by the jobs behind it, so it no longer stalls the queue.
+
 ## v0.31.0 — 2026-10-12
 
 ### Changed
