@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.31.3 — 2026-10-12
+
+### Removed
+
+- Running alone: --alone and --exclusive are still accepted but only print that the job shares a lane, and no job waits for an empty queue or the night.
+
 ## v0.31.2 — 2026-10-12
 
 ### Changed
