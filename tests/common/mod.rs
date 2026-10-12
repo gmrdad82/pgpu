@@ -335,6 +335,7 @@ impl Jail {
         let path = own_cgroup()?.join(format!("pgpu-e2e-{}-{name}", std::process::id()));
         fs::create_dir(&path).ok()?;
         let jail = Self { path };
+        fs::write(jail.path.join("cgroup.max.descendants"), "0").ok()?;
         fs::set_permissions(&jail.path, fs::Permissions::from_mode(0o555)).ok()?;
         Some(jail)
     }
