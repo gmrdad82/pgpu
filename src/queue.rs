@@ -477,7 +477,6 @@ pub(crate) struct View {
     pub(crate) seats: usize,
     paused: bool,
     night: bool,
-    busy: Option<u32>,
 }
 
 impl View {
@@ -501,8 +500,7 @@ impl View {
             offered,
             passed,
             night: night(),
-            busy: seats::load(dir).average(),
-            seats: seats::room(dir, seats, holding.len()),
+            seats: seats::room(seats, holding.len()),
             holding,
             paused,
             list,
@@ -664,25 +662,14 @@ impl View {
                 "a GPU lane is free, but jobs ahead of it in line come first: waits its turn"
                     .to_string(),
             ),
-            Wait::Seats => ("turn", {
-                let base = if self.seats > 1 {
+            Wait::Seats => (
+                "turn",
+                if self.seats > 1 {
                     format!("all {} GPU lanes busy: waits its turn", self.seats)
                 } else {
                     "the GPU is busy: waits its turn".to_string()
-                };
-                match self.busy {
-                    Some(busy) if self.seats < seats::MOST => format!(
-                        "{}, card {busy}%: waits its turn (a lane opens under {}%)",
-                        if self.seats > 1 {
-                            format!("all {} lanes busy", self.seats)
-                        } else {
-                            "the GPU is busy".to_string()
-                        },
-                        seats::GROW_UNDER
-                    ),
-                    _ => base,
-                }
-            }),
+                },
+            ),
         }
     }
 }
@@ -707,16 +694,7 @@ pub(crate) fn acquire(
             return Err(leave);
         }
         let view = View::read(dir);
-        seats::steer(
-            dir,
-            view.holding.iter().filter(|pid| **pid != me).count(),
-            view.list.iter().any(|t| {
-                !view.holding.contains(&t.pid)
-                    && !view.passed.contains(&t.pid)
-                    && seats::replaced(t.pid)
-            }),
-        );
-        let view = View::read(dir);
+        seats::hold_older(dir);
         view.offer(dir);
         let admitted = view.admits(me);
         let alone = view.list.iter().any(|t| t.pid == me && t.alone);

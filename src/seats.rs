@@ -17,131 +17,12 @@ pub(crate) fn count() -> usize {
         .clamp(1, MOST)
 }
 
-pub(crate) const GROW_UNDER: u32 = 70;
-
-pub(crate) const STOP_OVER: u32 = 90;
-
-pub(crate) const VRAM_OVER: u64 = 80;
-
-const WINDOW: u128 = 10_000;
-
-const SAMPLE: u128 = 500;
-
-fn window() -> u128 {
-    fake("load_window_ms")
-        .and_then(|ms| ms.parse().ok())
-        .unwrap_or(WINDOW)
+pub(crate) fn room(floor: usize, held: usize) -> usize {
+    floor.max(held).min(MOST)
 }
 
-#[derive(Debug, Default, PartialEq)]
-pub(crate) struct Load {
-    pub(crate) room: usize,
-    changed: u128,
-    samples: Vec<(u128, u32)>,
-}
-
-impl Load {
-    fn read(dir: &Path, at: u128) -> Self {
-        let body = fs::read_to_string(dir.join("load")).unwrap_or_default();
-        let mut lines = body.lines();
-        let mut head = lines.next().unwrap_or("").split_whitespace();
-        let room = head.next().and_then(|v| v.parse().ok()).unwrap_or(0);
-        let changed = head.next().and_then(|v| v.parse().ok()).unwrap_or(0);
-        let span = window();
-        let samples = lines
-            .filter_map(|line| {
-                let (when, busy) = line.split_once(' ')?;
-                Some((when.parse().ok()?, busy.trim().parse().ok()?))
-            })
-            .filter(|(when, _): &(u128, u32)| at.saturating_sub(*when) <= span)
-            .collect();
-        Self {
-            room,
-            changed,
-            samples,
-        }
-    }
-
-    pub(crate) fn average(&self) -> Option<u32> {
-        let sum: u64 = self.samples.iter().map(|(_, busy)| u64::from(*busy)).sum();
-        let n = u64::try_from(self.samples.len()).ok().filter(|n| *n > 0)?;
-        u32::try_from(sum / n).ok()
-    }
-
-    fn steer(&mut self, floor: usize, held: usize, busy: Option<u32>, shut: bool, at: u128) {
-        let span = window();
-        let base = floor.max(held).min(MOST);
-        self.samples
-            .retain(|(when, _)| at.saturating_sub(*when) <= span);
-        if self.samples.is_empty() {
-            self.room = base;
-        }
-        if let Some(busy) = busy
-            && self
-                .samples
-                .last()
-                .is_none_or(|(when, _)| at.saturating_sub(*when) >= SAMPLE)
-        {
-            self.samples.push((at, busy));
-        }
-        self.room = self.room.clamp(floor, MOST);
-        let full = self
-            .samples
-            .first()
-            .is_some_and(|(when, _)| at.saturating_sub(*when) + 2 * SAMPLE >= span);
-        let now = self.samples.last().map(|(_, busy)| *busy);
-        let average = self.average();
-        if shut || average.is_some_and(|a| a > STOP_OVER) || now.is_some_and(|b| b > STOP_OVER) {
-            if self.room != base {
-                self.room = base;
-                self.changed = at;
-            }
-        } else if full
-            && average.is_some_and(|a| a < GROW_UNDER)
-            && held >= self.room
-            && self.room < MOST
-            && at.saturating_sub(self.changed) >= span
-        {
-            self.room += 1;
-            self.changed = at;
-        }
-    }
-
-    fn body(&self) -> String {
-        let mut out = format!("{} {}\n", self.room, self.changed);
-        for (when, busy) in &self.samples {
-            out.push_str(&format!("{when} {busy}\n"));
-        }
-        out
-    }
-}
-
-pub(crate) fn replaced(pid: u32) -> bool {
-    fs::read_link(format!("/proc/{pid}/exe"))
-        .is_ok_and(|exe| exe.to_string_lossy().ends_with(" (deleted)"))
-}
-
-pub(crate) fn room(dir: &Path, floor: usize, held: usize) -> usize {
-    let load = Load::read(dir, millis());
-    let room = if load.samples.is_empty() {
-        floor
-    } else {
-        load.room
-    };
-    room.max(floor).max(held).min(MOST)
-}
-
-pub(crate) fn load(dir: &Path) -> Load {
-    Load::read(dir, millis())
-}
-
-pub(crate) fn steer(dir: &Path, held: usize, older: bool) {
-    let at = millis();
-    let mut load = Load::read(dir, at);
-    let vram_high = crate::usage::card()
-        .is_some_and(|card| card.used.saturating_mul(100) > card.total.saturating_mul(VRAM_OVER));
-    load.steer(count(), held, crate::gpu::busy(), vram_high || older, at);
-    let _ = write_atomic(&dir.join("load"), &load.body());
+pub(crate) fn hold_older(dir: &Path) {
+    let _ = write_atomic(&dir.join("load"), &format!("{} {}\n", count(), millis()));
 }
 
 pub(crate) fn lock_path(dir: &Path, seat: usize) -> PathBuf {
@@ -292,57 +173,8 @@ impl Line<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Line, Load, Seats, Wait, lock_path, running_path};
+    use super::{Line, Seats, Wait, lock_path, running_path};
 
-    #[test]
-    fn the_lanes_grow_one_at_a_time_under_70_percent_hold_between_and_stop_over_90_or_full_vram() {
-        let mut load = Load::default();
-        let mut at = 0;
-        let mut feed = |load: &mut Load, busy: u32, held: usize, vram: bool, secs: u128| {
-            for _ in 0..secs * 2 {
-                at += 500;
-                load.steer(2, held, Some(busy), vram, at);
-            }
-            load.room
-        };
-        assert_eq!(
-            feed(&mut load, 30, 2, false, 9),
-            2,
-            "a full 10 s window first"
-        );
-        assert_eq!(feed(&mut load, 30, 2, false, 2), 3);
-        assert_eq!(feed(&mut load, 30, 3, false, 5), 3, "one lane per 10 s");
-        assert_eq!(feed(&mut load, 30, 3, false, 6), 4);
-        assert_eq!(feed(&mut load, 30, 4, false, 30), 4, "never past 4");
-        assert_eq!(
-            feed(&mut load, 80, 2, false, 20),
-            4,
-            "between 70 and 90 it holds"
-        );
-        assert_eq!(
-            feed(&mut load, 95, 2, false, 1),
-            2,
-            "over 90 it stops admitting"
-        );
-        assert_eq!(
-            feed(&mut load, 95, 3, false, 1),
-            3,
-            "and never takes a held lane"
-        );
-        let mut vram = Load::default();
-        assert_eq!(
-            feed(&mut vram, 10, 2, true, 30),
-            2,
-            "VRAM over 80% stops it"
-        );
-        assert_eq!(feed(&mut vram, 10, 2, false, 11), 3);
-        let mut free = Load::default();
-        assert_eq!(
-            feed(&mut free, 10, 1, false, 30),
-            2,
-            "a free floor lane needs no growth"
-        );
-    }
     use crate::queue::Ticket;
     use std::fs;
     use std::path::PathBuf;

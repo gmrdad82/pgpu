@@ -99,7 +99,7 @@ pub(crate) fn turn(args: &[String]) -> ExitCode {
         slice_age: slice_age(&dir, wrapper),
         tickets: raw,
     };
-    let count = seats::room(&dir, seats::count(), holding.len());
+    let count = seats::room(seats::count(), holding.len());
     let decision = decide(
         seen,
         |pid| gate.open(pid) && !skip.contains(&pid),

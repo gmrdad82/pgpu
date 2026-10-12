@@ -52,7 +52,11 @@ fn two_lanes_run_two_jobs_at_once_and_a_third_says_it_waits_its_turn() {
     until("c waits its turn", 10, || {
         sb.waits_for(c).as_deref() == Some("turn")
     });
-    assert!(why(&sb, c).contains("all 2 lanes busy"), "{}", why(&sb, c));
+    assert!(
+        why(&sb, c).contains("all 2 GPU lanes busy"),
+        "{}",
+        why(&sb, c)
+    );
     let text = sb.status_text();
     assert_eq!(
         text.lines().filter(|l| l.starts_with("running")).count(),
@@ -429,13 +433,12 @@ fn a_job_past_its_memory_ceiling_is_killed_whole_and_recorded() {
 }
 
 #[test]
-fn the_lanes_follow_the_card_growing_under_70_percent_up_to_4_and_stopping_over_90_or_full_vram() {
-    let mut sb = Sandbox::new("lanes-follow");
+fn the_lanes_stay_at_gpu_slots_however_idle_the_card_and_whatever_an_older_wrapper_grew() {
+    let mut sb = Sandbox::new("lanes-fixed");
     lanes(&sb, 2);
-    sb.fake("load_window_ms", "2000\n");
-    sb.fake("card_busy", "30\n");
-    sb.fake("vram", "1000 10000\n");
-    let names = ["a", "b", "c", "d", "e"];
+    sb.fake("card_busy", "5\n");
+    fs::write(sb.path("run/pito-gpu-queue/load"), "4 0\n").unwrap();
+    let names = ["a", "b", "c"];
     let mut jobs = Vec::new();
     for name in names {
         jobs.push(sb.run(
@@ -445,36 +448,20 @@ fn the_lanes_follow_the_card_growing_under_70_percent_up_to_4_and_stopping_over_
         ));
     }
     let held = |sb: &Sandbox| jobs.iter().filter(|pid| running(sb, **pid)).count();
-    until("two floor lanes, then a third and a fourth", 20, || {
-        held(&sb) == 4
-    });
-    holds("never past 4", 3.0, || held(&sb) == 4);
+    until("two lanes fill", 10, || held(&sb) == 2);
+    holds("never a third", 3.0, || held(&sb) == 2);
     let waiter = *jobs.iter().find(|pid| !running(&sb, **pid)).unwrap();
     assert!(
-        why(&sb, waiter).contains("all 4 GPU lanes busy"),
+        why(&sb, waiter).contains("all 2 GPU lanes busy"),
         "{}",
         why(&sb, waiter)
     );
-    sb.fake("card_busy", "95\n");
-    holds("the card reads busy", 1.0, || held(&sb) == 4);
-    let first = *jobs.iter().find(|pid| running(&sb, **pid)).unwrap();
-    let name = names[jobs.iter().position(|pid| *pid == first).unwrap()];
-    fs::write(sb.path(&format!("{name}.finish")), "").unwrap();
-    assert!(sb.wait_exit(first, 10).success());
-    holds("over 90% the freed lane stays shut", 3.0, || {
-        held(&sb) == 3 && !running(&sb, waiter)
-    });
-    sb.fake("card_busy", "30\n");
-    sb.fake("vram", "9000 10000\n");
-    holds("VRAM over 80% keeps it shut", 3.0, || !running(&sb, waiter));
-    sb.fake("vram", "1000 10000\n");
-    until("under 70% with room in VRAM it opens again", 10, || {
-        running(&sb, waiter)
-    });
+    let load = fs::read_to_string(sb.path("run/pito-gpu-queue/load")).unwrap();
+    assert!(load.starts_with("2 "), "{load}");
     for name in names {
         fs::write(sb.path(&format!("{name}.finish")), "").unwrap();
     }
-    for pid in jobs.iter().copied().filter(|pid| *pid != first) {
+    for pid in jobs {
         assert!(sb.wait_exit(pid, 20).success());
     }
 }

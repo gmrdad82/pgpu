@@ -8,7 +8,7 @@ pgpu shares one GPU between jobs and agents on a Linux machine with an AMD GPU, 
 
 ## What it is
 
-- **Lanes that follow the card.** `GPU_SLOTS` jobs always run at once. While jobs wait and the card stays under 70 % busy over 10 s with VRAM under 80 %, one more lane opens, at most one every 10 s and up to 4. Over 90 % busy, or with VRAM over 80 %, no new lane opens. A running job never loses its lane.
+- **Lanes.** `GPU_SLOTS` jobs run at once, never more. A free lane goes to the first job in line, and a waiter that doesn't take its lane within 3 s is passed over, so whatever waits fills the lanes. A running job never loses its lane.
 - **Classes and turns.** Interactive jobs go first, then tests, clips, renders and benches, then ground-truth renders, then searches. A job that renders in passes calls `pgpu turn` between them, so a waiting job gets in. Sessions in the same class take turns.
 - **Budgets.** Every class has a run-time budget. A job past it shows red in `pgpu status`, and pgpu stops a job at twice its budget, or after 5 minutes with no GPU work, turn or CPU. Time spent waiting or frozen never counts.
 - **Memory ceilings.** Every job runs in its own cgroup with a memory ceiling, 24G unless `--memory` says otherwise, so one job can't take the machine down.
@@ -75,7 +75,7 @@ When a bench ends, it prints how many other jobs held a lane beside it and how b
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `GPU_SLOTS` | `1` | Lanes that always run, 1 to 4. |
+| `GPU_SLOTS` | `1` | The lanes: how many jobs run at once, 1 to 4. |
 | `GPU_SLOTS_FROM` | none | A file whose `GPU_SLOTS=` line overrides `GPU_SLOTS`, such as a machine-wide env file (`~/` works). |
 | `LEND` | `off` | `on` lets a job that holds the card without using it for 3 s lend its lane to the next job; it is frozen until it takes the lane back. A re-run alone lends by default. |
 | `PRIORITY` | `low` | `low` starts each job with `AMD_PRIORITY=-512`, so the desktop's own GPU work goes first; `normal` leaves it alone. |
