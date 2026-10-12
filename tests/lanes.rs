@@ -437,6 +437,7 @@ fn the_lanes_stay_at_gpu_slots_however_idle_the_card_and_whatever_an_older_wrapp
     let mut sb = Sandbox::new("lanes-fixed");
     lanes(&sb, 2);
     sb.fake("card_busy", "5\n");
+    fs::create_dir_all(sb.path("run/pito-gpu-queue")).unwrap();
     fs::write(sb.path("run/pito-gpu-queue/load"), "4 0\n").unwrap();
     let names = ["a", "b", "c"];
     let mut jobs = Vec::new();
