@@ -136,25 +136,9 @@ fn two_clips_that_both_turn_keep_both_lanes_and_a_third_takes_turns_on_them() {
 }
 
 #[test]
-fn a_rerun_alone_needs_a_reason_waits_for_an_empty_queue_by_day_and_at_night_lets_running_jobs_end()
-{
-    let mut sb = Sandbox::new("lanes-alone");
+fn alone_and_exclusive_still_parse_but_the_job_shares_a_lane() {
+    let mut sb = Sandbox::new("lanes-no-alone");
     lanes(&sb, 2);
-    sb.fake("night", "0\n");
-    for args in [
-        &["run", "--exclusive", "--", "true"][..],
-        &["run", "--alone", " ", "--", "true"][..],
-    ] {
-        let refused = sb.pgpu().args(args).output().unwrap();
-        assert_eq!(refused.status.code(), Some(1), "{args:?}");
-        let said = String::from_utf8_lossy(&refused.stderr);
-        assert!(
-            said.starts_with(
-                "pgpu: running alone is only for re-running a number that looks skewed"
-            ),
-            "{said}"
-        );
-    }
     let a = sb.run(
         &["--as", "alpha", "--class", "clip"],
         "a",
@@ -162,71 +146,43 @@ fn a_rerun_alone_needs_a_reason_waits_for_an_empty_queue_by_day_and_at_night_let
     );
     until("a runs", 10, || running(&sb, a));
     let e = sb.run(
-        &[
-            "--as",
-            "bench",
-            "--class",
-            "bench",
-            "--alone",
-            "9% off its baseline",
-        ],
+        &["--as", "bench", "--class", "bench", "--alone", "skewed"],
         "e",
-        &ticker("e", false),
+        &ticker("e", true),
     );
-    until("the re-run waits for an empty queue", 10, || {
-        why(&sb, e).contains("waits for an empty queue")
+    until("the --alone job takes the second lane beside a", 10, || {
+        running(&sb, e) && size(&sb.path("e.ticks")) > 0
     });
-    let c = sb.run(
-        &["--as", "gamma", "--class", "clip"],
-        "c",
-        &ticker("c", true),
+    holds("both keep their lanes", 1.0, || {
+        running(&sb, a) && running(&sb, e)
+    });
+    let x = sb.run(
+        &["--as", "xbench", "--class", "bench", "--exclusive"],
+        "x",
+        &ticker("x", false),
     );
-    until("c takes the free lane by day", 10, || {
-        running(&sb, c) && size(&sb.path("c.ticks")) > 0
-    });
-    holds("a and c keep their lanes at their turns", 1.0, || {
-        running(&sb, a) && running(&sb, c) && !sb.path("e.ticks").exists()
-    });
-    sb.fake("night", "1\n");
-    let d = sb.run(
-        &["--as", "delta", "--class", "clip"],
-        "d",
-        &ticker("d", false),
+    until(
+        "the --exclusive job waits its turn like any job",
+        10,
+        || sb.waits_for(x).as_deref() == Some("turn"),
     );
-    until("at night d waits behind the re-run", 10, || {
-        why(&sb, d).contains("bench runs alone")
+    fs::write(sb.path("a.finish"), "").unwrap();
+    assert!(sb.wait_exit(a, 10).success());
+    until("it takes the freed lane beside the other", 10, || {
+        running(&sb, x) && running(&sb, e)
     });
-    holds("running jobs keep their lanes at night", 1.5, || {
-        running(&sb, a)
-            && running(&sb, c)
-            && !sb.path("e.ticks").exists()
-            && !sb.path("d.ticks").exists()
-    });
-    for job in ["a", "c"] {
+    for job in ["e", "x"] {
         fs::write(sb.path(&format!("{job}.finish")), "").unwrap();
     }
-    for pid in [a, c] {
-        assert!(sb.wait_exit(pid, 20).success());
-    }
-    until("the re-run runs once they end", 10, || {
-        size(&sb.path("e.ticks")) > 0
-    });
-    holds("it runs alone", 1.0, || {
-        running(&sb, e) && !sb.path("d.ticks").exists()
-    });
-    fs::write(sb.path("e.finish"), "").unwrap();
     assert!(sb.wait_exit(e, 10).success());
-    let said = fs::read_to_string(sb.path("e.err")).unwrap();
-    assert!(said.contains("with the card to itself"), "{said}");
-    assert!(said.contains("re-run alone: 9% off its baseline"), "{said}");
-    until("d runs once the re-run is done", 10, || running(&sb, d));
-    fs::write(sb.path("d.finish"), "").unwrap();
-    assert!(sb.wait_exit(d, 20).success());
-    let stats = sb.pgpu().args(["stats", "--json"]).output().unwrap();
-    let stats = Json::parse(String::from_utf8_lossy(&stats.stdout).trim());
-    let bench = &stats.field("benches").items()[0];
-    assert_eq!(bench.field("alone").text(), "9% off its baseline");
-    assert_eq!(bench.field("shared").num(), 0.0);
+    assert!(sb.wait_exit(x, 10).success());
+    for job in ["e", "x"] {
+        let said = fs::read_to_string(sb.path(&format!("{job}.err"))).unwrap();
+        assert!(
+            said.starts_with("pgpu: running alone is gone; this job shares a lane\n"),
+            "{said}"
+        );
+    }
 }
 
 #[test]
@@ -254,73 +210,8 @@ fn a_bench_shares_the_lanes_and_says_how_many_jobs_ran_beside_it() {
     assert!(sb.wait_exit(e, 10).success());
     let said = fs::read_to_string(sb.path("e.err")).unwrap();
     assert!(said.contains("beside 1 other job"), "{said}");
-    assert!(said.contains("--alone"), "{said}");
     fs::write(sb.path("a.finish"), "").unwrap();
     assert!(sb.wait_exit(a, 10).success());
-}
-
-#[test]
-fn a_bench_idle_ten_seconds_lends_its_lanes_and_takes_them_back_freezing_the_borrower() {
-    let mut sb = Sandbox::new("lanes-bench-lends");
-    lanes(&sb, 1);
-    sb.config("lend", "on\n");
-    sb.fake("gpu.bench", "0\n");
-    let e = sb.run(
-        &["--as", "bench", "--class", "bench", "--alone", "skewed"],
-        "e",
-        "while [ ! -e \"$D/e.finish\" ]; do\necho x >> \"$D/e.ticks\"\n[ -e \"$D/e.quiet\" ] || \"$PGPU\" turn\nsleep 0.05\ndone\n",
-    );
-    until("the bench ticks", 10, || size(&sb.path("e.ticks")) > 0);
-    let bench = cell_of(&sb, e);
-    let c = sb.run(
-        &["--as", "gamma", "--class", "interactive"],
-        "c",
-        &ticker("c", false),
-    );
-    until("c waits behind the bench", 10, || {
-        sb.waits_for(c).as_deref() == Some("alone")
-    });
-    holds("the bench keeps the gpu at its turns", 2.0, || {
-        running(&sb, e) && !sb.path("c.ticks").exists()
-    });
-    fs::write(sb.path("e.quiet"), "").unwrap();
-    let quiet = Instant::now();
-    until("status names the bench idling the card", 10, || {
-        sb.status_text().contains("idling the card")
-    });
-    until("the bench lends its lanes", 20, || {
-        sb.job_state(e).as_deref() == Some("lent")
-    });
-    let lent = quiet.elapsed();
-    assert!(lent >= Duration::from_secs(9), "{lent:?}");
-    until("c runs on the lent lanes", 10, || {
-        running(&sb, c) && size(&sb.path("c.ticks")) > 0
-    });
-    assert!(sb.status_text().contains("idling the card: lent its lanes"));
-    let borrower = cell_of(&sb, c);
-    sb.fake("gpu.bench", "50\n");
-    until("the bench takes its lanes back", 5, || running(&sb, e));
-    until("the borrower is frozen", 5, || frozen(&borrower));
-    let ticks = size(&sb.path("e.ticks"));
-    holds("the bench runs on, never frozen", 1.0, || !frozen(&bench));
-    assert!(size(&sb.path("e.ticks")) > ticks, "the bench kept ticking");
-    assert_eq!(sb.job_state(c).as_deref(), Some("waiting"));
-    fs::write(sb.path("e.finish"), "").unwrap();
-    assert!(sb.wait_exit(e, 10).success());
-    let said = fs::read_to_string(sb.path("e.err")).unwrap();
-    assert!(said.contains("held the GPU alone"), "{said}");
-    assert!(said.contains("the GPU was busy"), "{said}");
-    assert!(said.contains("lent its lanes once"), "{said}");
-    until("c runs once the bench is done", 10, || {
-        running(&sb, c) && !frozen(&borrower)
-    });
-    fs::write(sb.path("c.finish"), "").unwrap();
-    assert!(sb.wait_exit(c, 10).success());
-    let said = fs::read_to_string(sb.path("c.err")).unwrap();
-    assert!(said.contains("frozen or waiting for the GPU"), "{said}");
-    let log = fs::read_to_string(sb.path("state/pito-gpu-queue/log.tsv")).unwrap();
-    let ends: Vec<&str> = log.lines().filter_map(|l| l.split('\t').nth(6)).collect();
-    assert!(ends.contains(&"lend") && ends.contains(&"reclaim"), "{log}");
 }
 
 #[test]

@@ -324,7 +324,7 @@ fn tickets_in(dir: &Path, proc_root: &Path) -> Vec<Ticket> {
             start: parsed.start,
             state,
             name: parsed.name.unwrap_or_else(|| rank_name(class).to_string()),
-            alone: parsed.alone,
+            alone: false,
         });
     }
     out

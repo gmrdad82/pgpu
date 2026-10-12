@@ -438,9 +438,6 @@ impl Share {
         });
         let after = match reason {
             Some(why) => format!("; re-run alone: {why}"),
-            None if !self.others.is_empty() => {
-                "; if skewed, re-run with --alone \"<why>\"".to_string()
-            }
             None => String::new(),
         };
         format!(

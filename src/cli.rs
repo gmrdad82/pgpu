@@ -6,18 +6,15 @@ use clap::{Parser, Subcommand};
 use crate::paths::{home, make_home, say};
 use crate::procs::{rescue, turned_this_second};
 use crate::queue::NAMES;
-use crate::queue::{clean, flag};
+use crate::queue::flag;
 use crate::report::{stats, status};
 use crate::run::{Ask, run};
 use crate::turn::turn;
 
 const RULES: &str = "\
-Jobs run GPU_SLOTS at once (~/.config/pgpu/config, else one), interactive first, sessions
-taking turns within a class. The lanes follow the card: one more opens, up to 4, while jobs wait
-and the card stays under 70% busy over 10 s with VRAM under 80%.
-Running alone is only for re-running a number that looks skewed, with --alone \"<why>\": it waits
-for an empty queue, or at night (01:00 to 07:00) for the running jobs to end with nothing new
-starting, then keeps every lane until it ends. A truth or search job whose waits add up to 10
+Jobs run GPU_SLOTS at once (~/.config/pgpu/config, else one), never more, interactive first,
+sessions taking turns within a class. Nothing runs alone: every job shares a lane, and a waiter
+that doesn't take a free lane within 3 s is passed over. A truth or search job whose waits add up to 10
 minutes takes turns as a clip, and so does an interactive job that has run 60 s or never calls
 turn in its first 5 s. A running job calls `pgpu turn` between passes to let a waiting job in.
 Classes and their budgets: interactive 5m, test 10m, clip and render 25m, bench 20m, truth and
@@ -85,11 +82,7 @@ enum Call {
             help = "Memory ceiling, killed past it (32G, 48G), else its class's 24G"
         )]
         memory: Option<u64>,
-        #[arg(
-            long,
-            value_name = "REASON",
-            help = "Re-run alone a number that looks skewed, saying why; it waits for an empty queue or the night (01:00 to 07:00), never jumps the line or freezes a job, and no other job runs beside it"
-        )]
+        #[arg(long, hide = true, num_args = 0..=1, default_missing_value = "")]
         alone: Option<String>,
         #[arg(long, hide = true)]
         exclusive: bool,
@@ -143,12 +136,9 @@ fn dispatch(args: Vec<OsString>) -> ExitCode {
     if let Call::Run {
         alone, exclusive, ..
     } = &call
-        && (*exclusive || alone.as_deref().is_some_and(|why| why.trim().is_empty()))
+        && (*exclusive || alone.is_some())
     {
-        say(
-            "pgpu: running alone is only for re-running a number that looks skewed: --alone \"<why it looks skewed>\"; without it every job, bench included, shares the lanes",
-        );
-        return ExitCode::from(1);
+        say("pgpu: running alone is gone; this job shares a lane");
     }
     let dir = if matches!(call, Call::Run { .. } | Call::Pause | Call::Resume) {
         make_home()
@@ -164,7 +154,7 @@ fn dispatch(args: Vec<OsString>) -> ExitCode {
             who,
             budget,
             memory,
-            alone,
+            alone: _,
             exclusive: _,
             command,
         } => run(Ask {
@@ -172,9 +162,7 @@ fn dispatch(args: Vec<OsString>) -> ExitCode {
             who,
             budget,
             memory,
-            alone: alone
-                .map(|why| clean(why.trim()))
-                .filter(|why| !why.is_empty()),
+            alone: None,
             command: &command,
         }),
         Call::Status { json } => status(json),
