@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.31.2 — 2026-10-12
+
+### Changed
+
+- The lanes are GPU_SLOTS, never more: no lane opens past them however idle the card, and a wrapper from an older pgpu can't open one either.
+
 ## v0.31.1 — 2026-10-12
 
 ### Fixed
