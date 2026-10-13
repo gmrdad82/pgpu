@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/gmrdad82/pgpu/actions/workflows/ci.yml/badge.svg)](https://github.com/gmrdad82/pgpu/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/tag/gmrdad82/pgpu)](https://github.com/gmrdad82/pgpu/tags)
 
-pgpu shares one GPU between jobs and agents on a Linux machine with an AMD GPU, part of [PITO](https://pitomd.com). You put `pgpu run --` in front of a GPU command, and it waits for a lane, runs, and hands the card on when it's done. Renders, tests, benchmarks and searches from several sessions take turns instead of fighting over the card, and the card stays busy.
+pgpu shares one GPU between jobs and agents on a Linux machine with an AMD GPU, part of [PITO MD](https://pitomd.com). You put `pgpu run --` in front of a GPU command, and it waits for a lane, runs, and hands the card on when it's done. Renders, tests, benchmarks and searches from several sessions take turns instead of fighting over the card, and the card stays busy.
 
 ## What it is
 
@@ -96,4 +96,4 @@ The tests run the built `pgpu` in sandbox queues under `tmp/` and need cgroup v2
 
 ## Licence
 
-The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The pgpu and PITO names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)).
+The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The pgpu and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)).
