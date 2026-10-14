@@ -45,3 +45,27 @@ tape = "render/terminal/status.tape"
 launch = "cd {scratch}/demo && export XDG_RUNTIME_DIR={scratch}/demo/run XDG_STATE_HOME={scratch}/demo/state XDG_CONFIG_HOME={scratch}/demo/config PATH={bin}:$PATH && set +m && clear"
 settle = "400ms"
 status = "SHIPPED"
+
+[shots.turn]
+kind = "clip"
+line = "a render in passes calls pgpu turn between them, and an interactive job waiting for the one lane gets in at the next turn"
+tape = "render/terminal/turn.tape"
+launch = "cd {scratch}/demo && export XDG_RUNTIME_DIR={scratch}/demo/run XDG_STATE_HOME={scratch}/demo/state XDG_CONFIG_HOME={scratch}/demo/config PATH={bin}:$PATH && printf 'GPU_SLOTS=1\\n' > config/pgpu/config && set +m && clear"
+settle = "400ms"
+status = "SHIPPED"
+
+[shots.limits]
+kind = "clip"
+line = "a job past its memory ceiling is killed with exit 137, and a job at twice its run-time budget is stopped with exit 124"
+tape = "render/terminal/limits.tape"
+launch = "cd {scratch}/demo && export XDG_RUNTIME_DIR={scratch}/demo/run XDG_STATE_HOME={scratch}/demo/state XDG_CONFIG_HOME={scratch}/demo/config PATH={bin}:$PATH && unset NO_COLOR && set +m && clear"
+settle = "400ms"
+status = "SHIPPED"
+
+[shots.json]
+kind = "clip"
+line = "scripts and agents read the queue with pgpu status --json"
+tape = "render/terminal/json.tape"
+launch = "cd {scratch}/demo && export XDG_RUNTIME_DIR={scratch}/demo/run XDG_STATE_HOME={scratch}/demo/state XDG_CONFIG_HOME={scratch}/demo/config PATH={bin}:$PATH && set +m && clear"
+settle = "400ms"
+status = "SHIPPED"

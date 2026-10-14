@@ -1,0 +1,20 @@
+title = "WHAT PGPU ADDS"
+unit = "MILLISECONDS, MEDIAN"
+better = "lower"
+subtitle = "PGPU 0.31.3, RYZEN 9 9950X, RX 9060 XT, SANDBOX QUEUE"
+date = "2026-10-14"
+suffix = " MS"
+notes = ["START: PGPU RUN -- TRUE MINUS PLAIN TRUE, 100 RUNS EACH.", "HAND-ON: A JOB ENDS AND THE WAITING ONE STARTS, ONE LANE, 20 TIMES."]
+parties = [{ name = "PGPU" }]
+
+[[groups]]
+name = "COMMANDS"
+rows = [
+  { label = "START A JOB", values = [2.11] },
+  { label = "PGPU STATUS", values = [1.45] },
+  { label = "PGPU STATUS --JSON", values = [1.82] },
+]
+
+[[groups]]
+name = "QUEUE"
+rows = [{ label = "HAND-ON", values = [5.71] }]

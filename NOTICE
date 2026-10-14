@@ -4,11 +4,18 @@ Copyright (c) 2026 Cătălin Ilinca
 The code is under the MIT licence in LICENSE. These are the files in this
 repository that are not code, where each comes from, and what covers it.
 
-A terminal clip recorded by prec from this repository's own shot
-(render/terminal.toml and the tape in render/terminal/, over the sleeping jobs
-render/terminal/queue.sh makes), made a GIF by pconv, under the MIT licence
+Terminal clips recorded by prec from this repository's own shots
+(render/terminal.toml and the tapes in render/terminal/, over the sample jobs
+render/terminal/queue.sh makes), made GIFs by pconv, under the MIT licence
 like the code:
 - docs/images/status.gif: the status shot
+- docs/images/turn.gif: the turn shot
+- docs/images/limits.gif: the limits shot
+- docs/images/json.gif: the json shot
+
+A chart drawn by pito-compare (pcmp) from this repository's own data, measured
+on 2026-10-14 with pgpu 0.31.3, under the MIT licence like the code:
+- docs/images/latency-bars.png: from docs/charts/latency.toml
 
 The pgpu and PITO MD names and their logos are © Catalin Ilinca, all rights
 reserved, and are not covered by the MIT licence (TRADEMARKS.md).
