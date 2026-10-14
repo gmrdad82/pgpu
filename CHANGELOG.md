@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1 — 2026-10-14
+
+### Changed
+
+- Each release carries its docs for docs.pitomd.com: install, a guide for every task, the command line, the JSON formats and the changelog.
+
 ## v1.0.0 — 2026-10-14
 
 ### Changed
