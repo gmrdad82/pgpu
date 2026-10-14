@@ -45,3 +45,5 @@ jobs:
       - name: test in a delegated cgroup
         run: sudo --preserve-env=PATH,HOME,CARGO_HOME,RUSTUP_HOME,CARGO_TERM_COLOR,CARGO_INCREMENTAL systemd-run --scope --quiet -p Delegate=yes cargo test --locked
       - run: cargo build --release --locked
+      - name: docs bundle
+        run: PGPU_BIN=target/release/pgpu bin/docs-bundle dist

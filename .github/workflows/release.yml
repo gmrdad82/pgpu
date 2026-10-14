@@ -56,10 +56,14 @@ jobs:
           cp "target/$TARGET/release/$EXE" LICENSE README.md dist/pack/
           cd dist/pack
           tar -czf "../$NAME" "$EXE" LICENSE README.md
+      - name: docs bundle
+        run: PGPU_BIN="target/$TARGET/release/$EXE" bin/docs-bundle dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ${{ matrix.asset }}
-          path: dist/${{ env.NAME }}
+          path: |
+            dist/${{ env.NAME }}
+            dist/docs-${{ github.ref_name }}.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -84,7 +88,7 @@ jobs:
           merge-multiple: true
       - name: checksums
         working-directory: dist
-        run: sha256sum pgpu-* > SHA256SUMS && cat SHA256SUMS
+        run: sha256sum pgpu-* docs-* > SHA256SUMS && cat SHA256SUMS
       - name: notes from the changelog
         run: |
           awk -v version="${TAG#v}" '

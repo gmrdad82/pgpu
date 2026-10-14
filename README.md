@@ -135,7 +135,7 @@ cargo build --release
 cargo test
 ```
 
-The tests run the built `pgpu` in sandbox queues under `tmp/` and need cgroup v2 with a delegated cgroup, as a systemd user session gives. CI runs rustfmt, clippy with warnings as errors and the tests on Linux on every push, and a tag builds the release binary. The README's GIFs are prec shots in `render/terminal.toml`, over sleeping sample jobs, and its chart is pito-compare's from `docs/charts/`.
+The tests run the built `pgpu` in sandbox queues under `tmp/` and need cgroup v2 with a delegated cgroup, as a systemd user session gives. CI runs rustfmt, clippy with warnings as errors and the tests on Linux on every push, and a tag builds the release binary and the docs bundle (`bin/docs-bundle`: the pages in `docs/site/` with the command-line reference from `--help`, the JSON spec and the changelog). The README's GIFs are prec shots in `render/terminal.toml`, over sleeping sample jobs, and its chart is pito-compare's from `docs/charts/`.
 
 ## Licence
 

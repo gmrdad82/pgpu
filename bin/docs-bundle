@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: bin/docs-bundle [OUT_DIR]" >&2
+  echo "Writes OUT_DIR/docs-vX.Y.Z.tar.gz (default OUT_DIR: tmp). PGPU_BIN names a built pgpu, else a release build is made." >&2
+  exit 2
+}
+case "${1:-}" in -h | --help) usage ;; esac
+[ $# -le 1 ] || usage
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+out=$(mkdir -p "${1:-tmp}" && cd "${1:-tmp}" && pwd)
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+tag="v$version"
+
+if [ -n "${PGPU_BIN:-}" ]; then
+  bin=$(cd "$(dirname "$PGPU_BIN")" && pwd)/$(basename "$PGPU_BIN")
+else
+  cargo build --release --locked --bin pgpu >&2
+  bin=$root/target/release/pgpu
+fi
+help() { NO_COLOR=1 "$bin" "$@" 2>&1 | cat; }
+help --version | grep -qx "pgpu $version" || { echo "docs-bundle: $bin is not pgpu $version" >&2; exit 1; }
+
+work=$(mktemp -d "$out/.docs-bundle.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+docs=$work/docs
+mkdir -p "$docs/reference" "$docs/images"
+cp -R docs/site/. "$docs/"
+
+{
+  printf -- '---\ntitle: pgpu\ndescription: Share one GPU between jobs on a Linux machine with an AMD GPU.\nsidebar:\n  order: 1\n---\n\n'
+  gif=$(sed -n '1s/.*src="docs\/images\/\([^"]*\)".*/\1/p' README.md)
+  alt=$(sed -n '1s/.*alt="\([^"]*\)".*/\1/p' README.md)
+  printf '![%s](images/%s)\n' "$alt" "$gif"
+  awk '/^# pgpu$/ { top = 1; next } top && /^## / { exit } top && !/^\[!\[CI\]/' README.md
+  printf '%s\n' \
+    '## Where to go' \
+    '' \
+    '- [Install](install/) it and run a first job.' \
+    '- [Run a job](guides/run-a-job/), [set the lanes](guides/configure/), [take turns](guides/turns/), [read the status](guides/status/).' \
+    '- [Budgets and memory ceilings](guides/budgets-and-memory/), [scripts and agents](guides/scripts/), [stats](guides/stats/), [hold the queue](guides/pause/).' \
+    '- [How pgpu works](guides/how-it-works/), with its measured speed.' \
+    '- The [command line](reference/cli/), the [JSON formats](reference/formats/) and the [changelog](changelog/).'
+} | cat -s > "$docs/index.md"
+
+{
+  printf -- '---\ntitle: Command line\ndescription: Every pgpu command and flag, from pgpu %s'"'"'s own --help.\nsidebar:\n  order: 1\n---\n\n' "$tag"
+  printf 'Generated from the `--help` of pgpu %s. Input pgpu can'"'"'t parse gets clap'"'"'s error on stderr and exit 2.\n\n' "$tag"
+  printf '## pgpu\n\n```text\n%s\n```\n' "$(help --help)"
+  for cmd in $(help --help | awk '/^Commands:/ { on = 1; next } on && /^$/ { exit } on { print $1 }'); do
+    [ "$cmd" = help ] && continue
+    printf '\n## pgpu %s\n\n```text\n%s\n```\n' "$cmd" "$(help "$cmd" --help)"
+  done
+} > "$docs/reference/cli.md"
+
+{
+  printf -- '---\ntitle: JSON formats\ndescription: The JSON pgpu status and pgpu stats print, field by field, and what each version added.\nsidebar:\n  order: 2\n---\n\n'
+  sed '1{/^# /d}' docs/json.md | sed '1{/^$/d}'
+} > "$docs/reference/formats.md"
+
+{
+  printf -- '---\ntitle: Changelog\ndescription: What changed in each pgpu release.\nsidebar:\n  order: 99\n---\n\n'
+  sed '1{/^# /d}' CHANGELOG.md | sed '1{/^$/d}'
+} > "$docs/changelog.md"
+
+for image in $(grep -rhoE 'images/[A-Za-z0-9._-]+\.(png|gif|webp)' "$docs" | sed 's|.*images/||' | sort -u); do
+  [ -f "docs/images/$image" ] || { echo "docs-bundle: docs/images/$image is missing" >&2; exit 1; }
+  grep -q "docs/images/$image" NOTICE || { echo "docs-bundle: docs/images/$image is not named in NOTICE" >&2; exit 1; }
+  cp "docs/images/$image" "$docs/images/"
+done
+
+if grep -rnE '/home/|/Users/|\]\([^)]*\.md[)#]|\]\(/' "$docs" --include=*.md; then
+  echo "docs-bundle: a page above carries a local path or a link that won't resolve" >&2
+  exit 1
+fi
+
+bad=0
+while IFS= read -r page; do
+  rel=${page#"$docs"/}
+  url=${rel%.md}/
+  [ "$rel" = index.md ] && url=
+  for link in $(grep -oE '\]\([^)#]*' "$page" | sed 's/^](//' | grep -vE '^(https?:|images/|\.\./\.\./images/|$)'); do
+    target=$(realpath -m --relative-to=/ "/$url$link")
+    [ "$target" = / ] || [ "$target" = . ] && target=index
+    [ -f "$docs/$target.md" ] || { echo "docs-bundle: $rel links $link, which is no page" >&2; bad=1; }
+  done
+done < <(find "$docs" -name '*.md')
+[ "$bad" = 0 ] || exit 1
+
+tarball=$out/docs-$tag.tar.gz
+tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$(git log -1 --format=%ct)" -C "$work" -czf "$tarball" docs
+echo "$tarball"
