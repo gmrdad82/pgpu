@@ -17,5 +17,8 @@ A chart drawn by pito-compare (pcmp) from this repository's own data, measured
 on 2026-10-14 with pgpu 0.31.3, under the MIT licence like the code:
 - docs/images/latency-bars.png: from docs/charts/latency.toml
 
+The PITO MD wordmark in docs/images/pitomd-wordmark.svg is copied by bin/marks
+from the PITO MD brand masters at aa3aee8b232a1b848995bf3d9a012a01d4aff8ec.
+
 The pgpu and PITO MD names and their logos are © Catalin Ilinca, all rights
 reserved, and are not covered by the MIT licence (TRADEMARKS.md).

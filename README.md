@@ -139,4 +139,6 @@ The tests run the built `pgpu` in sandbox queues under `tmp/` and need cgroup v2
 
 ## Licence
 
+<img src="docs/images/pitomd-wordmark.svg" width="320" alt="PITO MD">
+
 The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The pgpu and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)).
