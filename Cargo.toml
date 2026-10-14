@@ -1,6 +1,6 @@
 [package]
 name = "pgpu"
-version = "0.31.3"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Share one GPU between jobs and agents: a queue with lanes, turns, budgets and memory ceilings"

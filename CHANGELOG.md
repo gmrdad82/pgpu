@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.0 — 2026-10-14
+
+### Changed
+
+- pgpu is 1.0.0: the queue, its commands and its JSON stay as they were in 0.31.3.
+- The README shows every feature in a short clip (lanes, turns, budgets and memory ceilings, the JSON for scripts) and the measured numbers: 2.1 ms to start a job, 5.7 ms to hand a lane on, one 2 MB binary.
+- The brand reads PITO MD.
+
 ## v0.31.3 — 2026-10-12
 
 ### Removed
