@@ -30,7 +30,8 @@ jobs:
         with:
           toolchain: 1.97.1
           components: rustfmt, clippy
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: cache
         with:
           path: |
             ~/.cargo/registry/index
@@ -47,3 +48,12 @@ jobs:
       - run: cargo build --release --locked
       - name: docs bundle
         run: PGPU_BIN=target/release/pgpu bin/docs-bundle dist
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
