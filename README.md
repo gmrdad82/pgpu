@@ -122,7 +122,7 @@ The queue lives in `$XDG_RUNTIME_DIR/pito-gpu-queue/`, and the logs (`log.tsv`, 
 
 ## Part of PITO MD
 
-pgpu is one of the [PITO MD](https://pitomd.com) tools, and the GPU queue the others share on the machine they're built on: [pfx](https://github.com/gmrdad82/pfx) and [Manfred](https://github.com/gmrdad82/manfred) renders and GPU tests, and [pito-codecs](https://github.com/gmrdad82/pito-codecs) GPU benches, run through `pgpu run`. This README's GIFs are recorded with [prec](https://github.com/gmrdad82/prec) and made with [pconv](https://github.com/gmrdad82/pconv), and its chart is drawn by [pito-compare](https://github.com/gmrdad82/pito-compare).
+pgpu is one of the [PITO MD](https://pitomd.com) tools, and the GPU queue the others share on the machine they're built on: [pfx](https://github.com/gmrdad82/pfx) and [Manfred](https://github.com/gmrdad82/manfred) renders and GPU tests, and [pito-codecs](https://github.com/gmrdad82/pito-codecs) GPU benches, run through `pgpu run`. This README's GIFs are recorded with [prec](https://github.com/gmrdad82/prec) and made with [pcod](https://github.com/gmrdad82/pito-codecs), and its chart is drawn by [pito-compare](https://github.com/gmrdad82/pito-compare).
 
 ## Contributing
 

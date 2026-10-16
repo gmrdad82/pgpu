@@ -6,8 +6,8 @@ repository that are not code, where each comes from, and what covers it.
 
 Terminal clips recorded by prec from this repository's own shots
 (render/terminal.toml and the tapes in render/terminal/, over the sample jobs
-render/terminal/queue.sh makes), made GIFs by pconv, under the MIT licence
-like the code:
+render/terminal/queue.sh makes), made GIFs by pcod (pito-codecs,
+https://github.com/gmrdad82/pito-codecs), under the MIT licence like the code:
 - docs/images/status.gif: the status shot
 - docs/images/turn.gif: the turn shot
 - docs/images/limits.gif: the limits shot
